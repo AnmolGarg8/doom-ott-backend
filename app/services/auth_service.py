@@ -17,7 +17,7 @@ from app.core.security import (
     verify_password,
 )
 from app.models.enums import AuthProvider
-from app.models.user import User
+from app.models.user import AdminUser, Profile, User
 from app.providers.sms import get_sms_provider
 from app.schemas.auth import TokenResponse
 
@@ -191,6 +191,20 @@ class AuthService:
             )
 
         return await AuthService._issue_tokens(user.id, redis)
+
+    @staticmethod
+    async def admin_login(
+        email: str, password: str, db: AsyncSession, redis: Optional[Redis]
+    ) -> TokenResponse:
+        result = await db.execute(select(AdminUser).where(AdminUser.email == email))
+        admin = result.scalars().first()
+        if not admin or not verify_password(password, admin.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid admin email or password.",
+            )
+
+        return await AuthService._issue_tokens(admin.id, redis)
 
     @staticmethod
     async def social_auth(

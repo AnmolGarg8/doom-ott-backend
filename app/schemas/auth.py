@@ -20,7 +20,12 @@ class EmailSignupRequest(BaseModel):
 
 class EmailLoginRequest(BaseModel):
     email: EmailStr = Field(..., example="user@example.com")
-    password: str = Field(..., example="secret123")
+    password: str = Field(..., min_length=6, example="Secret123!")
+
+
+class AdminLoginRequest(BaseModel):
+    email: EmailStr = Field(..., example="admin@doomott.com")
+    password: str = Field(..., example="AdminPass123!")
 
 
 class SocialAuthRequest(BaseModel):

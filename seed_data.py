@@ -3,6 +3,7 @@ import uuid
 from datetime import date
 from sqlalchemy import select
 from app.core.database import AsyncSessionLocal, Base, engine
+from app.core.security import get_password_hash
 from app.models.enums import AuthProvider, ContentStatus, ContentType, CouponDiscountType, SubscriptionStatus, TransactionStatus
 from app.models.user import User, Profile, Role, AdminUser
 from app.models.content import Category, Content, Episode, VideoAsset
@@ -243,6 +244,24 @@ async def seed_data():
             if not res.scalars().first():
                 session.add(Coupon(**coupon))
         print("Coupons seeded.")
+
+        # Seed Demo Admin User
+        res_role = await session.execute(select(Role).where(Role.name == "SuperAdmin"))
+        role = res_role.scalars().first()
+        if not role:
+            role = Role(name="SuperAdmin", permissions=["*"])
+            session.add(role)
+            await session.flush()
+
+        res_admin = await session.execute(select(AdminUser).where(AdminUser.email == "admin@doomott.com"))
+        if not res_admin.scalars().first():
+            admin = AdminUser(
+                email="admin@doomott.com",
+                password_hash=get_password_hash("AdminPass123!"),
+                role_id=role.id,
+            )
+            session.add(admin)
+        print("Demo Admin User seeded (admin@doomott.com / AdminPass123!).")
 
         # Seed Content & Episodes
         for item in DEMO_CONTENT:

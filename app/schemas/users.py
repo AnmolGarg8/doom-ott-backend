@@ -34,6 +34,7 @@ class UserDetailResponse(BaseModel):
     email: Optional[str] = None
     name: str
     auth_provider: str
+    is_blocked: bool = False
     profiles: List[ProfileResponse] = []
 
     class Config:

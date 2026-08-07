@@ -7,6 +7,7 @@ from app.dependencies import get_current_user, get_db, get_redis
 from app.models.enums import AuthProvider
 from app.models.user import User
 from app.schemas.auth import (
+    AdminLoginRequest,
     EmailLoginRequest,
     EmailSignupRequest,
     MessageResponse,
@@ -75,6 +76,20 @@ async def email_login(
     redis: Optional[Redis] = Depends(get_redis),
 ):
     return await AuthService.email_login(body.email, body.password, db, redis)
+
+
+@router.post(
+    "/admin/login",
+    response_model=TokenResponse,
+    summary="Admin Email & Password Login",
+    tags=["Admin Auth"],
+)
+async def admin_login(
+    body: AdminLoginRequest,
+    db: AsyncSession = Depends(get_db),
+    redis: Optional[Redis] = Depends(get_redis),
+):
+    return await AuthService.admin_login(body.email, body.password, db, redis)
 
 
 @router.post(
