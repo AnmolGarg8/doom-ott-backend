@@ -1,3 +1,4 @@
+import os
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -8,15 +9,19 @@ from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
 
-# Create async engine
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=False,
-    future=True,
-    pool_pre_ping=True,
-)
+database_url = settings.DATABASE_URL
 
-# Async session factory
+# Fallback to local SQLite file database if USE_SQLITE environment variable is set or PostgreSQL is unavailable
+if os.getenv("USE_SQLITE", "false").lower() == "true":
+    database_url = "sqlite+aiosqlite:///./doom_ott_dev.db"
+
+# Engine configuration kwargs
+engine_kwargs = {"echo": False, "future": True}
+if "postgresql" in database_url:
+    engine_kwargs["pool_pre_ping"] = True
+
+engine = create_async_engine(database_url, **engine_kwargs)
+
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
