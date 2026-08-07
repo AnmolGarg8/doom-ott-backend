@@ -4,8 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import Base, engine
-from app.routers import auth_router, content_router, users_router
-from app.routers.admin import content_admin_router
+from app.routers import auth_router, content_router, payment_router, subscription_router, users_router
+from app.routers.admin import billing_admin_router, content_admin_router
 
 
 @asynccontextmanager
@@ -39,7 +39,10 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(content_router)
+app.include_router(subscription_router)
+app.include_router(payment_router)
 app.include_router(content_admin_router)
+app.include_router(billing_admin_router)
 
 
 @app.get("/health", tags=["Health"])

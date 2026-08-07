@@ -22,25 +22,44 @@ CATEGORIES_DATA = [
 
 PLANS_DATA = [
     {
-        "name": "Mobile",
-        "price": 4.99,
+        "name": "Mobile Monthly",
+        "price": 149.00,
         "duration_days": 30,
-        "features": ["1 Mobile Device", "480p SD Quality", "Ad-supported catalog"],
+        "features": ["1 Mobile Device", "720p HD Quality", "Unlimited Streaming"],
         "is_active": True,
     },
     {
-        "name": "Standard",
-        "price": 9.99,
-        "duration_days": 30,
-        "features": ["2 Screens HD", "1080p Full HD", "Unlimited Movies & Shows", "Download on 2 devices"],
+        "name": "Standard Quarterly",
+        "price": 399.00,
+        "duration_days": 90,
+        "features": ["2 Devices Simultaneous", "1080p Full HD", "Downloads Supported"],
         "is_active": True,
     },
     {
-        "name": "Premium Ultra 4K",
-        "price": 14.99,
-        "duration_days": 30,
+        "name": "Premium Annual 4K",
+        "price": 1299.00,
+        "duration_days": 365,
         "features": ["4 Screens Simultaneous", "4K Ultra HD + HDR", "Dolby Atmos Audio", "Unlimited Downloads"],
         "is_active": True,
+    },
+]
+
+COUPONS_DATA = [
+    {
+        "code": "WELCOME50",
+        "discount_type": CouponDiscountType.PERCENTAGE,
+        "value": 50.00,
+        "expiry": date(2026, 12, 31),
+        "usage_limit": 500,
+        "times_used": 0,
+    },
+    {
+        "code": "FLAT100",
+        "discount_type": CouponDiscountType.FLAT,
+        "value": 100.00,
+        "expiry": date(2026, 12, 31),
+        "usage_limit": 200,
+        "times_used": 0,
     },
 ]
 
@@ -217,6 +236,13 @@ async def seed_data():
             if not res.scalars().first():
                 session.add(SubscriptionPlan(**plan))
         print("Subscription plans seeded.")
+
+        # Seed Coupons
+        for coupon in COUPONS_DATA:
+            res = await session.execute(select(Coupon).where(Coupon.code == coupon["code"]))
+            if not res.scalars().first():
+                session.add(Coupon(**coupon))
+        print("Coupons seeded.")
 
         # Seed Content & Episodes
         for item in DEMO_CONTENT:

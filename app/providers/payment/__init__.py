@@ -1,19 +1,20 @@
-"""
-Payment Provider abstraction module (Stripe / Razorpay / etc.).
-"""
 from app.core.config import settings
+from app.providers.payment.interface import PaymentProvider
+from app.providers.payment.mock_payment import MockPaymentProvider
+from app.providers.payment.razorpay_payment import RazorpayProvider
 
 
-async def create_payment_intent(amount: int, currency: str = "usd") -> dict:
-    """Create payment intent via configured provider (mock or live)."""
-    if settings.PAYMENT_PROVIDER == "mock":
-        print(f"[MOCK PAYMENT] Creating payment intent for {amount} {currency}")
-        return {
-            "status": "success",
-            "transaction_id": "mock_tx_12345",
-            "amount": amount,
-            "currency": currency,
-            "provider": "mock",
-        }
-    else:
-        raise NotImplementedError(f"Payment Provider '{settings.PAYMENT_PROVIDER}' not implemented.")
+def get_payment_provider() -> PaymentProvider:
+    """Factory function returning PaymentProvider implementation based on PAYMENT_PROVIDER setting."""
+    provider_name = settings.PAYMENT_PROVIDER.lower()
+    if provider_name == "razorpay":
+        return RazorpayProvider()
+    return MockPaymentProvider()
+
+
+__all__ = [
+    "PaymentProvider",
+    "MockPaymentProvider",
+    "RazorpayProvider",
+    "get_payment_provider",
+]
