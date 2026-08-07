@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.redis_client import get_redis
 from app.core.security import decode_token
-from app.models.user import User
+from app.models.user import AdminUser, User
 
 security_scheme = HTTPBearer()
 
@@ -56,4 +56,48 @@ async def get_current_user(
     return user
 
 
-__all__ = ["get_db", "get_redis", "get_current_user"]
+async def get_current_admin(
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> AdminUser:
+    """Dependency validating JWT bearer token belongs to an AdminUser record."""
+    token = credentials.credentials
+    payload = decode_token(token)
+    if not payload or payload.get("type") != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    admin_id_str: str = payload.get("sub")
+    if not admin_id_str:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token subject.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        admin_uuid = uuid.UUID(admin_id_str)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid admin ID format in token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Check AdminUser table
+    result = await db.execute(select(AdminUser).where(AdminUser.id == admin_uuid))
+    admin_user = result.scalars().first()
+    if not admin_user:
+        # Fallback check: if token belongs to User with admin role or flag, or allow admin login flow
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin authorization required.",
+        )
+
+    return admin_user
+
+
+__all__ = ["get_db", "get_redis", "get_current_user", "get_current_admin"]

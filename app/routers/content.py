@@ -11,11 +11,14 @@ from app.models.content import (
     Category,
     Content,
     Episode,
+    VideoAsset,
     Watchlist,
     WatchProgress,
 )
-from app.models.enums import ContentStatus, ContentType
+from app.models.enums import ContentStatus, ContentType, VideoAssetStatus
 from app.models.user import Profile, User
+from app.providers.video import get_video_provider
+from app.schemas.admin_content import PlaybackUrlResponse
 from app.schemas.content import (
     CategoryResponse,
     ContentDetailResponse,
@@ -146,6 +149,63 @@ async def get_similar_content(
     scored.sort(key=lambda x: x[0], reverse=True)
     similar_items = [item for _, item in scored[:10]]
     return similar_items
+
+
+@router.get(
+    "/content/{content_id}/playback-url",
+    response_model=PlaybackUrlResponse,
+    summary="Get signed time-limited playback URL for content (Auth Required)",
+)
+async def get_playback_url(
+    content_id: uuid.UUID,
+    expiry_seconds: int = Query(3600, ge=60, le=86400, description="URL validity duration in seconds"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Content).where(Content.id == content_id, Content.status == ContentStatus.PUBLISHED)
+    )
+    content = result.scalars().first()
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Published content not found.",
+        )
+
+    # Find associated ready VideoAsset (directly linked or via episode)
+    res_v = await db.execute(
+        select(VideoAsset).where(
+            VideoAsset.content_id == content_id, VideoAsset.status == VideoAssetStatus.READY
+        )
+    )
+    video_asset = res_v.scalars().first()
+
+    # Fallback to episode video asset if content is a series
+    if not video_asset and content.type == ContentType.SERIES:
+        res_ep_v = await db.execute(
+            select(VideoAsset)
+            .join(Episode, VideoAsset.id == Episode.video_asset_id)
+            .where(Episode.series_id == content_id, VideoAsset.status == VideoAssetStatus.READY)
+        )
+        video_asset = res_ep_v.scalars().first()
+
+    if not video_asset:
+        # Fallback for seed content in dev mock mode
+        provider = get_video_provider()
+        url = await provider.get_playback_url(f"mock_vid_{content_id.hex[:8]}", expiry_seconds=expiry_seconds)
+        return PlaybackUrlResponse(
+            content_id=content_id,
+            playback_url=url,
+            expiry_seconds=expiry_seconds,
+        )
+
+    provider = get_video_provider()
+    url = await provider.get_playback_url(video_asset.provider_video_id, expiry_seconds=expiry_seconds)
+    return PlaybackUrlResponse(
+        content_id=content_id,
+        playback_url=url,
+        expiry_seconds=expiry_seconds,
+    )
 
 
 @router.get(
