@@ -46,6 +46,12 @@ class Settings(BaseSettings):
                 "Please generate a new random 32-byte hex secret (e.g. openssl rand -hex 32) and set it in your local .env file."
             )
 
+        if self.ENVIRONMENT.lower() == "production" and not self.CORS_ALLOWED_ORIGINS.strip():
+            raise ValueError(
+                "CRITICAL SECURITY ERROR: ENVIRONMENT is set to 'production' but CORS_ALLOWED_ORIGINS is empty. "
+                "Production environment MUST explicitly set allowed CORS origins (e.g. CORS_ALLOWED_ORIGINS=https://app.doomott.com,https://admin.doomott.com)."
+            )
+
 
 settings = Settings()
 settings.validate_secrets()
