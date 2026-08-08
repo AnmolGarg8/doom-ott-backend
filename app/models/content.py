@@ -26,7 +26,9 @@ class Content(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     type: Mapped[ContentType] = mapped_column(
-        SQLEnum(ContentType, name="content_type_enum"), nullable=False, index=True
+        SQLEnum(ContentType, name="content_type_enum", values_callable=lambda x: [e.name for e in x]),
+        nullable=False,
+        index=True,
     )
     title: Mapped[str] = mapped_column(String, nullable=False)
     synopsis: Mapped[str] = mapped_column(Text, nullable=False)
@@ -39,7 +41,7 @@ class Content(Base):
     poster_url: Mapped[str] = mapped_column(String, nullable=False)
     backdrop_url: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[ContentStatus] = mapped_column(
-        SQLEnum(ContentStatus, name="content_status_enum"),
+        SQLEnum(ContentStatus, name="content_status_enum", values_callable=lambda x: [e.name for e in x]),
         default=ContentStatus.DRAFT,
         server_default="DRAFT",
         nullable=False,
@@ -95,7 +97,8 @@ class VideoAsset(Base):
     provider_video_id: Mapped[str] = mapped_column(String, nullable=False)
     provider: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[VideoAssetStatus] = mapped_column(
-        SQLEnum(VideoAssetStatus, name="video_asset_status_enum"), nullable=False
+        SQLEnum(VideoAssetStatus, name="video_asset_status_enum", values_callable=lambda x: [e.name for e in x]),
+        nullable=False,
     )
     duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     thumbnail_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)

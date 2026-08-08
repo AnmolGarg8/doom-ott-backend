@@ -33,7 +33,9 @@ class User(Base):
     password_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     auth_provider: Mapped[AuthProvider] = mapped_column(
-        SQLEnum(AuthProvider), nullable=False, default=AuthProvider.EMAIL
+        SQLEnum(AuthProvider, name="auth_provider_enum", values_callable=lambda x: [e.name for e in x]),
+        nullable=False,
+        default=AuthProvider.EMAIL,
     )
     is_blocked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(

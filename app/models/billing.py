@@ -49,7 +49,8 @@ class Subscription(Base):
         UUID(as_uuid=True), ForeignKey("subscription_plans.id"), index=True, nullable=False
     )
     status: Mapped[SubscriptionStatus] = mapped_column(
-        SQLEnum(SubscriptionStatus, name="subscription_status_enum"), nullable=False
+        SQLEnum(SubscriptionStatus, name="subscription_status_enum", values_callable=lambda x: [e.name for e in x]),
+        nullable=False,
     )
     start_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -74,7 +75,8 @@ class Transaction(Base):
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     gateway_ref: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     status: Mapped[TransactionStatus] = mapped_column(
-        SQLEnum(TransactionStatus, name="transaction_status_enum"), nullable=False
+        SQLEnum(TransactionStatus, name="transaction_status_enum", values_callable=lambda x: [e.name for e in x]),
+        nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -89,7 +91,8 @@ class Coupon(Base):
     )
     code: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
     discount_type: Mapped[CouponDiscountType] = mapped_column(
-        SQLEnum(CouponDiscountType, name="coupon_discount_type_enum"), nullable=False
+        SQLEnum(CouponDiscountType, name="coupon_discount_type_enum", values_callable=lambda x: [e.name for e in x]),
+        nullable=False,
     )
     value: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     expiry: Mapped[date] = mapped_column(Date, nullable=False)
