@@ -136,7 +136,8 @@ DEMO_CONTENT = [
         "language": "English",
         "content_rating": "G",
         "release_year": 2024,
-        "duration_minutes": 18,
+        "duration_minutes": None,
+        "duration_seconds": 45,
         "poster_url": "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=600&auto=format&fit=crop",
         "backdrop_url": "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?w=1200&auto=format&fit=crop",
         "status": ContentStatus.PUBLISHED,
@@ -164,7 +165,8 @@ DEMO_CONTENT = [
         "language": "English",
         "content_rating": "G",
         "release_year": 2023,
-        "duration_minutes": 7,
+        "duration_minutes": None,
+        "duration_seconds": 30,
         "poster_url": "https://images.unsplash.com/photo-1534188753412-3e26d0d618d6?w=600&auto=format&fit=crop",
         "backdrop_url": "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1200&auto=format&fit=crop",
         "status": ContentStatus.PUBLISHED,
@@ -277,6 +279,9 @@ async def seed_data():
                 for ep in episodes_data:
                     episode_obj = Episode(series_id=content_obj.id, **ep)
                     session.add(episode_obj)
+            else:
+                existing_content.duration_seconds = item.get("duration_seconds")
+                existing_content.duration_minutes = item.get("duration_minutes")
         print("Content catalog and episodes seeded.")
 
         await session.commit()

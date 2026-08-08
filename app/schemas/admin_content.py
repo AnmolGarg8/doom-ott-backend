@@ -14,6 +14,7 @@ class ContentCreateRequest(BaseModel):
     content_rating: str = Field(default="PG-13", example="PG-13")
     release_year: int = Field(..., example=2025)
     duration_minutes: Optional[int] = Field(None, example=120)
+    duration_seconds: Optional[int] = Field(None, example=45)
     poster_url: str = Field(..., example="https://example.com/poster.jpg")
     backdrop_url: str = Field(..., example="https://example.com/backdrop.jpg")
 
@@ -27,6 +28,7 @@ class ContentUpdateRequest(BaseModel):
     content_rating: Optional[str] = None
     release_year: Optional[int] = None
     duration_minutes: Optional[int] = None
+    duration_seconds: Optional[int] = None
     poster_url: Optional[str] = None
     backdrop_url: Optional[str] = None
 

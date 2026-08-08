@@ -38,6 +38,7 @@ class Content(Base):
     content_rating: Mapped[str] = mapped_column(String, nullable=False)
     release_year: Mapped[int] = mapped_column(Integer, nullable=False)
     duration_minutes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     poster_url: Mapped[str] = mapped_column(String, nullable=False)
     backdrop_url: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[ContentStatus] = mapped_column(

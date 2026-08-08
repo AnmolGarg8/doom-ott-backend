@@ -41,6 +41,7 @@ async def create_draft_content(
         content_rating=body.content_rating,
         release_year=body.release_year,
         duration_minutes=body.duration_minutes,
+        duration_seconds=body.duration_seconds,
         poster_url=body.poster_url,
         backdrop_url=body.backdrop_url,
         status=ContentStatus.DRAFT,
