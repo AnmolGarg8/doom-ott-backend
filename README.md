@@ -12,11 +12,42 @@ Built with Python 3.12, FastAPI, Async SQLAlchemy 2.0, PostgreSQL, Redis, Alembi
 - **Database**: PostgreSQL 16 (Async SQLAlchemy 2.0 + `asyncpg`, SQLite fallback for dev)
 - **Migrations**: Alembic
 - **Caching & OTP**: Redis (`redis.asyncio` with in-memory fallback for local dev)
-- **Authentication**: JWT access tokens (15-min TTL) & refresh tokens (30-day TTL bcrypt-hashed in Redis), passlib/bcrypt password hashing, SMS OTP authentication, Admin-scoped auth.
+- **Rate Limiting**: `slowapi` rate limiting on auth & checkout endpoints
+- **Authentication**: JWT access tokens (30-min TTL) & refresh tokens (7-day TTL bcrypt-hashed in Redis), passlib/bcrypt password hashing, SMS OTP authentication, Admin-scoped auth.
 - **Provider Abstractions**:
   - **SMS**: Mock SMS logger & MSG91 SMS gateway driver (`SMS_PROVIDER`)
   - **Video**: Mock public video stream driver & Bunny Stream CDN driver with SHA-256 token security (`VIDEO_PROVIDER`)
   - **Payment**: Mock payment checkout/verification & Razorpay Gateway driver with HMAC verification (`PAYMENT_PROVIDER`)
+
+---
+
+## Security & Environment Configuration
+
+> [!IMPORTANT]
+> **NEVER commit a real `.env` file to the public repository.** 
+> Only commit `.env.example` containing obvious placeholder strings. Each environment (local dev, staging, production) MUST generate its own unique `JWT_SECRET_KEY`.
+
+### Generating a New JWT Secret
+To generate a secure 32-byte hex secret key for your local environment:
+```bash
+# Option 1: OpenSSL
+openssl rand -hex 32
+
+# Option 2: Python secrets module
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+Copy the generated 64-character hex string and paste it into your local `.env` file as `JWT_SECRET_KEY`.
+
+### Startup Secret Validation
+The backend automatically validates `JWT_SECRET_KEY` on startup (`app/core/config.py`). If the key is missing, empty, or uses default placeholder strings, the server will intentionally fail to start to prevent running in an insecure state.
+
+### CORS Configuration
+- In `development` mode (`ENVIRONMENT=development`), CORS defaults to allowing dev origins if `CORS_ALLOWED_ORIGINS` is unset.
+- In `production` mode (`ENVIRONMENT=production`), specify an explicit comma-separated list of allowed origins:
+  ```env
+  ENVIRONMENT=production
+  CORS_ALLOWED_ORIGINS=https://app.doomott.com,https://admin.doomott.com
+  ```
 
 ---
 
@@ -25,12 +56,13 @@ Built with Python 3.12, FastAPI, Async SQLAlchemy 2.0, PostgreSQL, Redis, Alembi
 ```text
 doom-ott-backend/
 ├── app/
-│   ├── main.py                     # FastAPI application entry point & router registration
+│   ├── main.py                     # FastAPI application entry point, CORS & rate limit middleware
 │   ├── dependencies.py             # Auth dependencies (get_current_user, get_current_admin, get_db, get_redis)
 │   ├── core/
-│   │   ├── config.py               # Pydantic-settings configuration
+│   │   ├── config.py               # Pydantic-settings configuration & secret validation
 │   │   ├── database.py             # Async SQLAlchemy engine & session maker
 │   │   ├── security.py             # JWT token handling & password hashing
+│   │   ├── limiter.py              # SlowAPI rate limiting configuration
 │   │   └── redis_client.py         # Redis async client & fallback handling
 │   ├── models/                     # SQLAlchemy 2.0 models (User, Profile, Content, VideoAsset, Subscription, etc.)
 │   ├── schemas/                    # Pydantic v2 schemas (Auth, Content, Billing, Admin)
@@ -74,7 +106,7 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Copy environment file
+# Copy environment template & set your JWT_SECRET_KEY
 cp .env.example .env
 ```
 

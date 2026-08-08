@@ -1,9 +1,10 @@
 from datetime import date, datetime, timedelta, timezone
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.limiter import limiter
 from app.dependencies import get_current_user, get_db
 from app.models.billing import Coupon, Subscription, SubscriptionPlan, Transaction
 from app.models.enums import CouponDiscountType, SubscriptionStatus, TransactionStatus
@@ -24,7 +25,9 @@ router = APIRouter(prefix="/payment", tags=["Payments & Checkout"])
     response_model=CheckoutResponse,
     summary="Initiate payment checkout for a subscription plan (Auth Required)",
 )
+@limiter.limit("10/hour")
 async def checkout_payment(
+    request: Request,
     body: CheckoutRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -106,7 +109,9 @@ async def checkout_payment(
     "/verify",
     summary="Verify payment signature & activate subscription (Auth Required)",
 )
+@limiter.limit("10/hour")
 async def verify_payment(
+    request: Request,
     body: PaymentVerifyRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

@@ -1,23 +1,25 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
 from app.core.database import Base, engine
+from app.core.limiter import limiter
 from app.routers import auth_router, content_router, payment_router, subscription_router, users_router
 from app.routers.admin import billing_admin_router, content_admin_router, user_admin_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Ensure database tables exist (useful for dev / sqlite fallback / postgres startup)
+    # Ensure database tables exist
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
     except Exception as e:
         print(f"[Lifespan Warning] Could not auto-create tables: {e}")
     yield
-    # Shutdown tasks
 
 
 app = FastAPI(
@@ -26,10 +28,25 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# TODO: Restrict allowed origins in production env (e.g., allow_origins=["https://yourdomain.com"])
+# SlowAPI Rate Limiter setup
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS Configuration
+if settings.CORS_ALLOWED_ORIGINS.strip():
+    allowed_origins = [
+        origin.strip()
+        for origin in settings.CORS_ALLOWED_ORIGINS.split(",")
+        if origin.strip()
+    ]
+elif settings.ENVIRONMENT.lower() == "development":
+    allowed_origins = ["*"]
+else:
+    allowed_origins = []
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins if allowed_origins else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

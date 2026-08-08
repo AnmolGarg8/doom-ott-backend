@@ -1,8 +1,9 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.limiter import limiter
 from app.dependencies import get_current_user, get_db, get_redis
 from app.models.enums import AuthProvider
 from app.models.user import User
@@ -57,7 +58,9 @@ async def verify_otp(
     status_code=status.HTTP_201_CREATED,
     summary="Email & Password Signup",
 )
+@limiter.limit("5/hour")
 async def email_signup(
+    request: Request,
     body: EmailSignupRequest,
     db: AsyncSession = Depends(get_db),
     redis: Optional[Redis] = Depends(get_redis),
@@ -70,7 +73,9 @@ async def email_signup(
     response_model=TokenResponse,
     summary="Email & Password Login",
 )
+@limiter.limit("5/15minutes")
 async def email_login(
+    request: Request,
     body: EmailLoginRequest,
     db: AsyncSession = Depends(get_db),
     redis: Optional[Redis] = Depends(get_redis),
@@ -84,7 +89,9 @@ async def email_login(
     summary="Admin Email & Password Login",
     tags=["Admin Auth"],
 )
+@limiter.limit("5/15minutes")
 async def admin_login(
+    request: Request,
     body: AdminLoginRequest,
     db: AsyncSession = Depends(get_db),
     redis: Optional[Redis] = Depends(get_redis),
