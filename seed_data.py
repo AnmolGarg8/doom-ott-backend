@@ -6,7 +6,7 @@ from app.core.database import AsyncSessionLocal, Base, engine
 from app.core.security import get_password_hash
 from app.models.enums import AuthProvider, ContentStatus, ContentType, CouponDiscountType, SubscriptionStatus, TransactionStatus
 from app.models.user import User, Profile, Role, AdminUser
-from app.models.content import Category, Content, Episode, VideoAsset
+from app.models.content import Category, Content, Episode, Review, VideoAsset
 from app.models.billing import SubscriptionPlan, Coupon
 
 
@@ -284,8 +284,39 @@ async def seed_data():
                 existing_content.duration_minutes = item.get("duration_minutes")
         print("Content catalog and episodes seeded.")
 
+        # Seed Demo Reviewer User & Demo Reviews
+        res_user = await session.execute(select(User).where(User.email == "demo_user@doomott.com"))
+        demo_user = res_user.scalars().first()
+        if not demo_user:
+            demo_user = User(
+                email="demo_user@doomott.com",
+                name="Demo Reviewer",
+                auth_provider=AuthProvider.EMAIL,
+                password_hash=get_password_hash("DemoPass123!"),
+            )
+            session.add(demo_user)
+            await session.flush()
+
+        REVIEWS_SEED_DATA = [
+            {"title": "Doom: The Beginning", "ratings": [5, 4]},   # avg = 4.5
+            {"title": "Tears of Steel", "ratings": [4, 4]},        # avg = 4.0
+            {"title": "Sintel: The Quest", "ratings": [5, 5, 4]},  # avg = 4.7
+            {"title": "Cyberpunk 2099", "ratings": [5, 3]},       # avg = 4.0
+            {"title": "Cosmic Odyssey", "ratings": [5, 5]},        # avg = 5.0
+        ]
+
+        for seed_rev in REVIEWS_SEED_DATA:
+            res_c = await session.execute(select(Content).where(Content.title == seed_rev["title"]))
+            c_obj = res_c.scalars().first()
+            if c_obj:
+                res_existing_rev = await session.execute(select(Review).where(Review.content_id == c_obj.id))
+                if not res_existing_rev.scalars().first():
+                    for rating in seed_rev["ratings"]:
+                        session.add(Review(user_id=demo_user.id, content_id=c_obj.id, rating=rating, comment="Great content!"))
+        print("Demo reviews seeded.")
+
         await session.commit()
-        print(" Seeding completed successfully!")
+        print("Seeding completed successfully!")
 
 
 if __name__ == "__main__":

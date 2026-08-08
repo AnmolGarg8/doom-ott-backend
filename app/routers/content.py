@@ -11,6 +11,7 @@ from app.models.content import (
     Category,
     Content,
     Episode,
+    Review,
     VideoAsset,
     Watchlist,
     WatchProgress,
@@ -62,7 +63,7 @@ async def list_content(
     result = await db.execute(query.order_by(Content.created_at.desc()))
     all_content = result.scalars().all()
 
-    # In-memory genre / min_rating filter for JSON field compatibility
+    # In-memory genre filter for JSON field compatibility
     filtered = []
     for c in all_content:
         if genre and genre.lower() not in [g.lower() for g in (c.genre or [])]:
@@ -73,6 +74,24 @@ async def list_content(
     total_pages = math.ceil(total / page_size) if total > 0 else 1
     offset = (page - 1) * page_size
     page_items = filtered[offset : offset + page_size]
+
+    # Batch fetch avg_rating for page items
+    page_content_ids = [c.id for c in page_items]
+    avg_ratings_map = {}
+    if page_content_ids:
+        rating_query = (
+            select(Review.content_id, func.avg(Review.rating))
+            .where(Review.content_id.in_(page_content_ids))
+            .group_by(Review.content_id)
+        )
+        rating_res = await db.execute(rating_query)
+        for cid, avg_val in rating_res.all():
+            if avg_val is not None:
+                avg_ratings_map[cid] = round(float(avg_val), 1)
+
+    # Attach computed avg_rating attribute to each item
+    for item in page_items:
+        setattr(item, "avg_rating", avg_ratings_map.get(item.id))
 
     return PaginatedContentResponse(
         items=[ContentResponse.model_validate(item) for item in page_items],
@@ -107,6 +126,13 @@ async def get_content_detail(
     # Sort episodes if series
     if content.episodes:
         content.episodes.sort(key=lambda ep: (ep.season, ep.episode_no))
+
+    # Fetch average rating for content
+    res_rating = await db.execute(
+        select(func.avg(Review.rating)).where(Review.content_id == content_id)
+    )
+    avg_val = res_rating.scalar()
+    setattr(content, "avg_rating", round(float(avg_val), 1) if avg_val is not None else None)
 
     return content
 
@@ -148,6 +174,23 @@ async def get_similar_content(
 
     scored.sort(key=lambda x: x[0], reverse=True)
     similar_items = [item for _, item in scored[:10]]
+
+    # Batch fetch avg_rating for similar items
+    similar_ids = [item.id for item in similar_items]
+    avg_ratings_map = {}
+    if similar_ids:
+        rating_res = await db.execute(
+            select(Review.content_id, func.avg(Review.rating))
+            .where(Review.content_id.in_(similar_ids))
+            .group_by(Review.content_id)
+        )
+        for cid, avg_val in rating_res.all():
+            if avg_val is not None:
+                avg_ratings_map[cid] = round(float(avg_val), 1)
+
+    for item in similar_items:
+        setattr(item, "avg_rating", avg_ratings_map.get(item.id))
+
     return similar_items
 
 
@@ -234,11 +277,24 @@ async def get_user_watchlist(
     )
     items = result.scalars().all()
 
-    # Load associated content for each item
+    content_ids = [item.content_id for item in items]
+    avg_ratings_map = {}
+    if content_ids:
+        rating_res = await db.execute(
+            select(Review.content_id, func.avg(Review.rating))
+            .where(Review.content_id.in_(content_ids))
+            .group_by(Review.content_id)
+        )
+        for cid, avg_val in rating_res.all():
+            if avg_val is not None:
+                avg_ratings_map[cid] = round(float(avg_val), 1)
+
     response_list = []
     for item in items:
         res = await db.execute(select(Content).where(Content.id == item.content_id))
         content_obj = res.scalars().first()
+        if content_obj:
+            setattr(content_obj, "avg_rating", avg_ratings_map.get(content_obj.id))
         response_list.append(
             WatchlistResponse(
                 user_id=item.user_id,
@@ -268,6 +324,12 @@ async def add_to_watchlist(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Content not found.",
         )
+
+    res_rating = await db.execute(
+        select(func.avg(Review.rating)).where(Review.content_id == content_id)
+    )
+    avg_val = res_rating.scalar()
+    setattr(content_obj, "avg_rating", round(float(avg_val), 1) if avg_val is not None else None)
 
     res_w = await db.execute(
         select(Watchlist).where(Watchlist.user_id == current_user.id, Watchlist.content_id == content_id)
@@ -326,7 +388,6 @@ async def get_watch_progress(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # Verify profile belongs to user if profile_id provided, otherwise get all user profiles
     res_p = await db.execute(select(Profile.id).where(Profile.user_id == current_user.id))
     user_profile_ids = [p for p in res_p.scalars().all()]
 
@@ -350,10 +411,24 @@ async def get_watch_progress(
     )
     items = result.scalars().all()
 
+    content_ids = [item.content_id for item in items]
+    avg_ratings_map = {}
+    if content_ids:
+        rating_res = await db.execute(
+            select(Review.content_id, func.avg(Review.rating))
+            .where(Review.content_id.in_(content_ids))
+            .group_by(Review.content_id)
+        )
+        for cid, avg_val in rating_res.all():
+            if avg_val is not None:
+                avg_ratings_map[cid] = round(float(avg_val), 1)
+
     response_list = []
     for item in items:
         res_c = await db.execute(select(Content).where(Content.id == item.content_id))
         content_obj = res_c.scalars().first()
+        if content_obj:
+            setattr(content_obj, "avg_rating", avg_ratings_map.get(content_obj.id))
         response_list.append(
             WatchProgressResponse(
                 profile_id=item.profile_id,
@@ -377,7 +452,6 @@ async def upsert_watch_progress(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # Verify profile belongs to current user
     res_p = await db.execute(
         select(Profile).where(Profile.id == body.profile_id, Profile.user_id == current_user.id)
     )
@@ -395,6 +469,12 @@ async def upsert_watch_progress(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Content not found.",
         )
+
+    res_rating = await db.execute(
+        select(func.avg(Review.rating)).where(Review.content_id == content_id)
+    )
+    avg_val = res_rating.scalar()
+    setattr(content_obj, "avg_rating", round(float(avg_val), 1) if avg_val is not None else None)
 
     res_wp = await db.execute(
         select(WatchProgress).where(

@@ -35,12 +35,14 @@ class ContentResponse(BaseModel):
     genre: List[str] = []
     language: str
     content_rating: str
+    release_year: int
     duration_minutes: Optional[int] = None
     duration_seconds: Optional[int] = None
     poster_url: str
     backdrop_url: str
     status: str
     created_at: datetime
+    avg_rating: Optional[float] = None
 
     class Config:
         from_attributes = True
