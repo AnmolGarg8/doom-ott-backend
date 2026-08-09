@@ -1,15 +1,23 @@
 import uuid
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
+from redis.asyncio import Redis
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.dependencies import get_current_user, get_db
-from app.models.user import Profile, User
-from app.schemas.users import ProfileCreate, ProfileResponse, ProfileUpdate, UserDetailResponse
+from app.dependencies import get_current_user, get_db, get_redis
+from app.models.user import Profile, Session, User
+from app.schemas.users import (
+    ProfileCreate,
+    ProfileResponse,
+    ProfileUpdate,
+    SessionResponse,
+    UserDetailResponse,
+)
+from app.services.auth_service import redis_delete
 
-router = APIRouter(prefix="/users", tags=["User Profiles"])
+router = APIRouter(prefix="/users", tags=["User Profiles & Sessions"])
 
 
 @router.get("/me", response_model=UserDetailResponse, summary="Get current user details with profiles")
@@ -23,6 +31,56 @@ async def get_my_details(
     user = result.scalars().first()
     return user
 
+
+# --- Session Management Endpoints ---
+
+@router.get(
+    "/sessions",
+    response_model=List[SessionResponse],
+    summary="List active sessions for current user (Auth Required)",
+)
+async def get_user_sessions(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Session)
+        .where(Session.user_id == current_user.id)
+        .order_by(Session.last_active_at.desc())
+    )
+    return result.scalars().all()
+
+
+@router.delete(
+    "/sessions/{session_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Revoke a specific active session (Auth Required)",
+)
+async def revoke_session(
+    session_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis: Optional[Redis] = Depends(get_redis),
+):
+    result = await db.execute(
+        select(Session).where(Session.id == session_id, Session.user_id == current_user.id)
+    )
+    session = result.scalars().first()
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found or access denied.",
+        )
+
+    # Invalidate session refresh token in Redis
+    await redis_delete(redis, f"refresh_token:{current_user.id}")
+
+    await db.delete(session)
+    await db.commit()
+    return None
+
+
+# --- Profile Endpoints ---
 
 @router.post(
     "/profiles",

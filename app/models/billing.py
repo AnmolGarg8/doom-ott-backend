@@ -30,6 +30,9 @@ class SubscriptionPlan(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     duration_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    max_devices: Mapped[int] = mapped_column(
+        Integer, default=1, server_default="1", nullable=False
+    )
     features: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False

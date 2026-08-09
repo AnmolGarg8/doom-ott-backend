@@ -49,7 +49,7 @@ async def verify_otp(
     db: AsyncSession = Depends(get_db),
     redis: Optional[Redis] = Depends(get_redis),
 ):
-    return await AuthService.verify_otp(body.phone, body.otp, db, redis)
+    return await AuthService.verify_otp(body.phone, body.otp, body.device_id, body.device_name, db, redis)
 
 
 @router.post(
@@ -65,7 +65,7 @@ async def email_signup(
     db: AsyncSession = Depends(get_db),
     redis: Optional[Redis] = Depends(get_redis),
 ):
-    return await AuthService.email_signup(body.email, body.password, body.name, db, redis)
+    return await AuthService.email_signup(body.email, body.password, body.name, body.device_id, body.device_name, db, redis)
 
 
 @router.post(
@@ -80,7 +80,7 @@ async def email_login(
     db: AsyncSession = Depends(get_db),
     redis: Optional[Redis] = Depends(get_redis),
 ):
-    return await AuthService.email_login(body.email, body.password, db, redis)
+    return await AuthService.email_login(body.email, body.password, body.device_id, body.device_name, db, redis)
 
 
 @router.post(
@@ -96,7 +96,7 @@ async def admin_login(
     db: AsyncSession = Depends(get_db),
     redis: Optional[Redis] = Depends(get_redis),
 ):
-    return await AuthService.admin_login(body.email, body.password, db, redis)
+    return await AuthService.admin_login(body.email, body.password, body.device_id, body.device_name, db, redis)
 
 
 @router.post(
@@ -109,7 +109,7 @@ async def social_google(
     db: AsyncSession = Depends(get_db),
     redis: Optional[Redis] = Depends(get_redis),
 ):
-    return await AuthService.social_auth(body.id_token, AuthProvider.GOOGLE, db, redis)
+    return await AuthService.social_auth(body.id_token, AuthProvider.GOOGLE, body.device_id, body.device_name, db, redis)
 
 
 @router.post(
@@ -122,7 +122,7 @@ async def social_apple(
     db: AsyncSession = Depends(get_db),
     redis: Optional[Redis] = Depends(get_redis),
 ):
-    return await AuthService.social_auth(body.id_token, AuthProvider.APPLE, db, redis)
+    return await AuthService.social_auth(body.id_token, AuthProvider.APPLE, body.device_id, body.device_name, db, redis)
 
 
 @router.post(
@@ -132,9 +132,10 @@ async def social_apple(
 )
 async def refresh_tokens(
     body: RefreshTokenRequest,
+    db: AsyncSession = Depends(get_db),
     redis: Optional[Redis] = Depends(get_redis),
 ):
-    return await AuthService.refresh_tokens(body.refresh_token, redis)
+    return await AuthService.refresh_tokens(body.refresh_token, body.device_id, body.device_name, db, redis)
 
 
 @router.post(

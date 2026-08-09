@@ -51,6 +51,34 @@ class User(Base):
     profiles: Mapped[List["Profile"]] = relationship(
         "Profile", back_populates="user", cascade="all, delete-orphan"
     )
+    sessions: Mapped[List["Session"]] = relationship(
+        "Session", back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class Session(Base):
+    __tablename__ = "sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    device_id: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    device_name: Mapped[str] = mapped_column(String, nullable=False)
+    refresh_token_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    last_active_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    user: Mapped["User"] = relationship("User", back_populates="sessions")
 
 
 class Profile(Base):

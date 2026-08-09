@@ -39,3 +39,13 @@ class UserDetailResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class SessionResponse(BaseModel):
+    id: uuid.UUID
+    device_name: str
+    last_active_at: datetime
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
