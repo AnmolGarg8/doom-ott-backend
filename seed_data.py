@@ -1,7 +1,7 @@
 import asyncio
 import uuid
 from datetime import date
-from sqlalchemy import select
+from sqlalchemy import select, func
 from app.core.database import AsyncSessionLocal, Base, engine
 from app.core.security import get_password_hash
 from app.models.enums import AuthProvider, ContentStatus, ContentType, CouponDiscountType, SubscriptionStatus, TransactionStatus
@@ -284,7 +284,7 @@ async def seed_data():
                 existing_content.duration_minutes = item.get("duration_minutes")
         print("Content catalog and episodes seeded.")
 
-        # Seed Demo Reviewer User & Demo Reviews
+        # Seed Demo Reviewer User & Profiles
         res_user = await session.execute(select(User).where(User.email == "demo_user@doomott.com"))
         demo_user = res_user.scalars().first()
         if not demo_user:
@@ -295,6 +295,14 @@ async def seed_data():
                 password_hash=get_password_hash("DemoPass123!"),
             )
             session.add(demo_user)
+            await session.flush()
+
+        # Seed companion Kids profile for demo user if missing
+        res_p_count = await session.execute(select(func.count(Profile.id)).where(Profile.user_id == demo_user.id))
+        p_count = res_p_count.scalar() or 0
+        if p_count == 0:
+            session.add(Profile(user_id=demo_user.id, name="Demo", avatar_key="avatar_1", is_kids_profile=False))
+            session.add(Profile(user_id=demo_user.id, name="Kids", avatar_key="kids_default", is_kids_profile=True))
             await session.flush()
 
         REVIEWS_SEED_DATA = [

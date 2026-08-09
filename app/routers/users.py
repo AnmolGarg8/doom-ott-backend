@@ -26,9 +26,9 @@ async def get_my_details(
 
 @router.post(
     "/profiles",
-    response_model=ProfileResponse,
+    response_model=List[ProfileResponse],
     status_code=status.HTTP_201_CREATED,
-    summary="Create a new profile (max 4 per user)",
+    summary="Create a new profile (max 4 per user). Auto-creates a companion Kids profile on first profile creation.",
 )
 async def create_profile(
     body: ProfileCreate,
@@ -46,6 +46,8 @@ async def create_profile(
             detail="Maximum profile limit reached. Users can have at most 4 profiles.",
         )
 
+    is_first_profile = (count == 0)
+
     profile = Profile(
         user_id=current_user.id,
         name=body.name,
@@ -53,9 +55,22 @@ async def create_profile(
         is_kids_profile=body.is_kids_profile,
     )
     db.add(profile)
+    created_profiles = [profile]
+
+    if is_first_profile:
+        kids_profile = Profile(
+            user_id=current_user.id,
+            name="Kids",
+            avatar_key="kids_default",
+            is_kids_profile=True,
+        )
+        db.add(kids_profile)
+        created_profiles.append(kids_profile)
+
     await db.commit()
-    await db.refresh(profile)
-    return profile
+    for p in created_profiles:
+        await db.refresh(p)
+    return created_profiles
 
 
 @router.patch(
