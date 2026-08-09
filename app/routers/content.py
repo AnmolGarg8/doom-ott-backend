@@ -32,6 +32,10 @@ from app.schemas.content import (
 
 router = APIRouter(tags=["Content Catalog & Watch Tracking"])
 
+# Kid-safe rating list constant
+# NOTE: This should eventually be configurable via the admin panel's Parental Controls settings rather than hardcoded.
+KID_SAFE_CONTENT_RATINGS = ["G", "PG"]
+
 
 # --- Public Content Browsing ---
 
@@ -46,6 +50,7 @@ async def list_content(
     language: Optional[str] = Query(None, description="Filter by language"),
     min_rating: Optional[float] = Query(None, description="Minimum content rating"),
     search: Optional[str] = Query(None, description="Search query matching title"),
+    kids_mode: bool = Query(False, description="Filter content for Kids Mode (G and PG ratings only)"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     db: AsyncSession = Depends(get_db),
@@ -58,6 +63,9 @@ async def list_content(
         query = query.where(func.lower(Content.language) == language.lower())
     if search:
         query = query.where(Content.title.ilike(f"%{search}%"))
+
+    if kids_mode:
+        query = query.where(func.upper(Content.content_rating).in_(KID_SAFE_CONTENT_RATINGS))
 
     # Execute query to fetch candidates
     result = await db.execute(query.order_by(Content.created_at.desc()))
@@ -109,6 +117,7 @@ async def list_content(
 )
 async def get_content_detail(
     content_id: uuid.UUID,
+    kids_mode: bool = Query(False, description="Enforce Kids Mode rating restrictions"),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -121,6 +130,12 @@ async def get_content_detail(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Content not found or not published.",
+        )
+
+    if kids_mode and content.content_rating.upper() not in KID_SAFE_CONTENT_RATINGS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This content is not available in Kids Mode",
         )
 
     # Sort episodes if series
@@ -144,6 +159,7 @@ async def get_content_detail(
 )
 async def get_similar_content(
     content_id: uuid.UUID,
+    kids_mode: bool = Query(False, description="Enforce Kids Mode rating restrictions"),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(Content).where(Content.id == content_id))
@@ -154,14 +170,22 @@ async def get_similar_content(
             detail="Target content not found.",
         )
 
+    if kids_mode and target.content_rating.upper() not in KID_SAFE_CONTENT_RATINGS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This content is not available in Kids Mode",
+        )
+
     target_genres = [g.lower() for g in (target.genre or [])]
 
     # Fetch other published content
-    res = await db.execute(
-        select(Content).where(
-            Content.id != content_id, Content.status == ContentStatus.PUBLISHED
-        )
+    query = select(Content).where(
+        Content.id != content_id, Content.status == ContentStatus.PUBLISHED
     )
+    if kids_mode:
+        query = query.where(func.upper(Content.content_rating).in_(KID_SAFE_CONTENT_RATINGS))
+
+    res = await db.execute(query)
     others = res.scalars().all()
 
     # Score by number of overlapping genres
@@ -269,6 +293,7 @@ async def list_categories(db: AsyncSession = Depends(get_db)):
     summary="Get current user's watchlist",
 )
 async def get_user_watchlist(
+    kids_mode: bool = Query(False, description="Filter watchlist items for Kids Mode"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -294,6 +319,8 @@ async def get_user_watchlist(
         res = await db.execute(select(Content).where(Content.id == item.content_id))
         content_obj = res.scalars().first()
         if content_obj:
+            if kids_mode and content_obj.content_rating.upper() not in KID_SAFE_CONTENT_RATINGS:
+                continue
             setattr(content_obj, "avg_rating", avg_ratings_map.get(content_obj.id))
         response_list.append(
             WatchlistResponse(
