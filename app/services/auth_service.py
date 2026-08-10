@@ -134,7 +134,7 @@ class AuthService:
                 detail="OTP expired or not found. Please request a new OTP.",
             )
 
-        if stored_otp != otp and not (settings.SMS_PROVIDER == "mock" and otp == "123456"):
+        if stored_otp != otp:
             await redis_incr(redis, attempt_key, ex=300)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
