@@ -380,21 +380,23 @@ class AuthService:
         redis_key = f"refresh_token:{user_id_str}"
         await redis_set(redis, redis_key, refresh_hash, ex=30 * 86400)
 
-        # 5. Create or update Session record
-        if existing_session:
-            existing_session.device_name = device_name
-            existing_session.last_active_at = now
-            existing_session.refresh_token_hash = refresh_hash
-        else:
-            new_session = Session(
-                user_id=user_id,
-                device_id=device_id,
-                device_name=device_name,
-                refresh_token_hash=refresh_hash,
-                created_at=now,
-                last_active_at=now,
-            )
-            db.add(new_session)
+        # 5. Create or update Session record (for consumer users)
+        res_is_user = await db.execute(select(User.id).where(User.id == user_id))
+        if res_is_user.scalar() is not None:
+            if existing_session:
+                existing_session.device_name = device_name
+                existing_session.last_active_at = now
+                existing_session.refresh_token_hash = refresh_hash
+            else:
+                new_session = Session(
+                    user_id=user_id,
+                    device_id=device_id,
+                    device_name=device_name,
+                    refresh_token_hash=refresh_hash,
+                    created_at=now,
+                    last_active_at=now,
+                )
+                db.add(new_session)
 
         await db.commit()
 

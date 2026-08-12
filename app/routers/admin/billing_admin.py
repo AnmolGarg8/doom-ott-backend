@@ -18,6 +18,19 @@ from app.schemas.billing import (
 router = APIRouter(prefix="/admin", tags=["Admin Billing & Subscription Management"])
 
 
+@router.get(
+    "/plans",
+    response_model=List[SubscriptionPlanResponse],
+    summary="List all subscription plans (Admin)",
+)
+async def list_admin_plans(
+    current_admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    res = await db.execute(select(SubscriptionPlan).order_by(SubscriptionPlan.price.asc()))
+    return res.scalars().all()
+
+
 @router.post(
     "/plans",
     response_model=SubscriptionPlanResponse,
@@ -33,6 +46,7 @@ async def create_plan(
         name=body.name,
         price=body.price,
         duration_days=body.duration_days,
+        max_devices=body.max_devices,
         features=body.features,
         is_active=body.is_active,
     )
@@ -67,6 +81,29 @@ async def update_plan(
     await db.commit()
     await db.refresh(plan)
     return plan
+
+
+@router.delete(
+    "/plans/{plan_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a subscription plan (Admin)",
+)
+async def delete_plan(
+    plan_id: uuid.UUID,
+    current_admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    res = await db.execute(select(SubscriptionPlan).where(SubscriptionPlan.id == plan_id))
+    plan = res.scalars().first()
+    if not plan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Subscription plan not found.",
+        )
+
+    await db.delete(plan)
+    await db.commit()
+    return None
 
 
 @router.post(
@@ -112,3 +149,26 @@ async def list_coupons(
 ):
     res = await db.execute(select(Coupon).order_by(Coupon.code.asc()))
     return res.scalars().all()
+
+
+@router.delete(
+    "/coupons/{coupon_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a coupon (Admin)",
+)
+async def delete_coupon(
+    coupon_id: uuid.UUID,
+    current_admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    res = await db.execute(select(Coupon).where(Coupon.id == coupon_id))
+    coupon = res.scalars().first()
+    if not coupon:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Coupon not found.",
+        )
+
+    await db.delete(coupon)
+    await db.commit()
+    return None

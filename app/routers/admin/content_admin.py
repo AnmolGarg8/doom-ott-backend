@@ -1,23 +1,151 @@
+import math
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.dependencies import get_current_admin, get_db
-from app.models.content import Content, VideoAsset
-from app.models.enums import ContentStatus, VideoAssetStatus
+from app.models.content import Content, Review, VideoAsset
+from app.models.enums import ContentStatus, ContentType, VideoAssetStatus
 from app.models.user import AdminUser
 from app.providers.video import get_video_provider
 from app.schemas.admin_content import (
+    AdminContentDetailResponse,
     ContentCreateRequest,
     ContentUpdateRequest,
     VideoUploadResponse,
     VideoWebhookPayload,
 )
-from app.schemas.content import ContentResponse
+from app.schemas.content import ContentResponse, PaginatedContentResponse
 
 router = APIRouter(prefix="/admin", tags=["Admin Content & Video Pipeline"])
+
+
+@router.get(
+    "/content",
+    response_model=PaginatedContentResponse,
+    summary="Get paginated list of ALL content regardless of status (Admin)",
+)
+async def list_admin_content(
+    status_filter: Optional[ContentStatus] = Query(None, alias="status", description="Filter by status (draft/published/archived)"),
+    type_filter: Optional[ContentType] = Query(None, alias="type", description="Filter by content type (movie/series)"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    query = select(Content)
+    if status_filter:
+        query = query.where(Content.status == status_filter)
+    if type_filter:
+        query = query.where(Content.type == type_filter)
+
+    res = await db.execute(query.order_by(Content.created_at.desc()))
+    all_content = res.scalars().all()
+
+    total = len(all_content)
+    total_pages = math.ceil(total / page_size) if total > 0 else 1
+    offset = (page - 1) * page_size
+    page_items = all_content[offset : offset + page_size]
+
+    # Batch compute avg_rating
+    page_content_ids = [c.id for c in page_items]
+    avg_ratings_map = {}
+    if page_content_ids:
+        rating_query = (
+            select(Review.content_id, func.avg(Review.rating))
+            .where(Review.content_id.in_(page_content_ids))
+            .group_by(Review.content_id)
+        )
+        rating_res = await db.execute(rating_query)
+        for cid, avg_val in rating_res.all():
+            if avg_val is not None:
+                avg_ratings_map[cid] = round(float(avg_val), 1)
+
+    for item in page_items:
+        setattr(item, "avg_rating", avg_ratings_map.get(item.id))
+
+    return PaginatedContentResponse(
+        items=[ContentResponse.model_validate(item) for item in page_items],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+    )
+
+
+@router.get(
+    "/content/{content_id}",
+    response_model=AdminContentDetailResponse,
+    summary="Get full content details including video asset status for admin edit screen (Admin)",
+)
+async def get_admin_content_detail(
+    content_id: uuid.UUID,
+    current_admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Content)
+        .options(selectinload(Content.episodes))
+        .where(Content.id == content_id)
+    )
+    content = result.scalars().first()
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Content record not found.",
+        )
+
+    # Fetch associated video assets
+    res_v = await db.execute(
+        select(VideoAsset).where(VideoAsset.content_id == content_id)
+    )
+    video_assets = res_v.scalars().all()
+    setattr(content, "video_assets", video_assets)
+
+    # Compute avg_rating if reviews exist
+    res_rating = await db.execute(
+        select(func.avg(Review.rating)).where(Review.content_id == content_id)
+    )
+    avg_val = res_rating.scalar()
+    setattr(content, "avg_rating", round(float(avg_val), 1) if avg_val is not None else None)
+
+    return content
+
+
+@router.delete(
+    "/content/{content_id}",
+    response_model=ContentResponse,
+    summary="Soft delete content by archiving status (Admin)",
+)
+async def delete_admin_content(
+    content_id: uuid.UUID,
+    current_admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    res = await db.execute(select(Content).where(Content.id == content_id))
+    content = res.scalars().first()
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Content record not found.",
+        )
+
+    content.status = ContentStatus.ARCHIVED
+    await db.commit()
+    await db.refresh(content)
+
+    # Compute avg_rating if reviews exist
+    res_rating = await db.execute(
+        select(func.avg(Review.rating)).where(Review.content_id == content_id)
+    )
+    avg_val = res_rating.scalar()
+    setattr(content, "avg_rating", round(float(avg_val), 1) if avg_val is not None else None)
+
+    return content
 
 
 @router.post(
@@ -161,6 +289,14 @@ async def update_content_metadata(
 
     await db.commit()
     await db.refresh(content)
+
+    # Compute avg_rating if reviews exist
+    res_rating = await db.execute(
+        select(func.avg(Review.rating)).where(Review.content_id == content_id)
+    )
+    avg_val = res_rating.scalar()
+    setattr(content, "avg_rating", round(float(avg_val), 1) if avg_val is not None else None)
+
     return content
 
 
@@ -198,4 +334,12 @@ async def publish_content(
     content.status = ContentStatus.PUBLISHED
     await db.commit()
     await db.refresh(content)
+
+    # Compute avg_rating if reviews exist
+    res_rating = await db.execute(
+        select(func.avg(Review.rating)).where(Review.content_id == content_id)
+    )
+    avg_val = res_rating.scalar()
+    setattr(content, "avg_rating", round(float(avg_val), 1) if avg_val is not None else None)
+
     return content

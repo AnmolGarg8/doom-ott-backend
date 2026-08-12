@@ -2,6 +2,7 @@ import uuid
 from typing import List, Optional
 from pydantic import BaseModel, Field
 from app.models.enums import ContentType, VideoAssetStatus
+from app.schemas.content import ContentDetailResponse
 
 
 class ContentCreateRequest(BaseModel):
@@ -50,3 +51,21 @@ class PlaybackUrlResponse(BaseModel):
     content_id: uuid.UUID
     playback_url: str
     expiry_seconds: int = 3600
+
+
+class VideoAssetResponse(BaseModel):
+    id: uuid.UUID
+    content_id: Optional[uuid.UUID] = None
+    episode_id: Optional[uuid.UUID] = None
+    provider_video_id: str
+    provider: str
+    status: VideoAssetStatus
+    duration_seconds: Optional[int] = None
+    thumbnail_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class AdminContentDetailResponse(ContentDetailResponse):
+    video_assets: List[VideoAssetResponse] = []
