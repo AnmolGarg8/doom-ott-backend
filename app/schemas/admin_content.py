@@ -2,7 +2,7 @@ import uuid
 from typing import List, Optional
 from pydantic import BaseModel, Field
 from app.models.enums import ContentType, VideoAssetStatus
-from app.schemas.content import ContentDetailResponse
+from app.schemas.content import ContentDetailResponse, EpisodeResponse
 
 
 class ContentCreateRequest(BaseModel):
@@ -69,3 +69,46 @@ class VideoAssetResponse(BaseModel):
 
 class AdminContentDetailResponse(ContentDetailResponse):
     video_assets: List[VideoAssetResponse] = []
+
+
+class EpisodeCreateRequest(BaseModel):
+    season: int = Field(..., ge=1, example=1)
+    episode_no: int = Field(..., ge=1, example=1)
+    title: str = Field(..., example="Pilot")
+    duration_minutes: Optional[int] = Field(None, example=45)
+    duration_seconds: Optional[int] = Field(None, example=30)
+    synopsis: Optional[str] = Field(None, example="Episode synopsis...")
+
+
+class EpisodeUpdateRequest(BaseModel):
+    season: Optional[int] = Field(None, ge=1)
+    episode_no: Optional[int] = Field(None, ge=1)
+    title: Optional[str] = None
+    duration_minutes: Optional[int] = None
+    duration_seconds: Optional[int] = None
+    synopsis: Optional[str] = None
+
+
+class EpisodeVideoUploadResponse(BaseModel):
+    episode_id: uuid.UUID
+    video_asset_id: uuid.UUID
+    provider_video_id: str
+    upload_url: str
+    status: VideoAssetStatus
+
+
+class ImageUploadResponse(BaseModel):
+    content_id: uuid.UUID
+    image_type: str
+    url: str
+    message: str
+
+
+class ChecklistItem(BaseModel):
+    label: str
+    passed: bool
+
+
+class PublishChecklistResponse(BaseModel):
+    can_publish: bool
+    checks: List[ChecklistItem]

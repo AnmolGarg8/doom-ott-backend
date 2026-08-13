@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     SMS_PROVIDER: str = "mock"
     VIDEO_PROVIDER: str = "mock"
     PAYMENT_PROVIDER: str = "mock"
+    IMAGE_PROVIDER: str = "mock"
+
+    # Bunny Storage Zone (for image uploads)
+    BUNNY_STORAGE_ZONE: str = ""
+    BUNNY_STORAGE_API_KEY: str = ""
+    BUNNY_CDN_URL: str = "https://doom-ott.b-cdn.net"
 
     model_config = SettingsConfigDict(
         env_file=".env",

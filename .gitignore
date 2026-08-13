@@ -62,6 +62,10 @@ venv.bak/
 *.db
 *.sqlite3
 
+# Static local uploads
+static/uploads/*
+!static/uploads/.gitkeep
+
 # IDE / Editor files
 .vscode/
 .idea/
