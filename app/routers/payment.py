@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.limiter import limiter
 from app.dependencies import get_current_user, get_db
 from app.models.billing import Coupon, Subscription, SubscriptionPlan, Transaction
@@ -98,10 +99,13 @@ async def checkout_payment(
 
     return CheckoutResponse(
         transaction_id=transaction.id,
-        order_id=order_info["order_id"],
-        amount=final_amount,
-        currency="INR",
         plan_id=plan.id,
+        plan_name=plan.name,
+        original_amount=float(plan.price),
+        discount_amount=round(float(plan.price) - final_amount, 2),
+        final_amount=final_amount,
+        payment_provider=settings.PAYMENT_PROVIDER,
+        gateway_order_id=order_info["order_id"],
     )
 
 
